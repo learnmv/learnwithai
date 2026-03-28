@@ -19,7 +19,7 @@ from app.core.security import (
 from app.repositories.user_repo import UserRepository
 
 settings = get_settings()
-router = APIRouter(prefix="/auth", tags=["authentication"])
+router = APIRouter(tags=["authentication"])
 
 
 @router.post("/register", response_model=UserResponse)
