@@ -70,6 +70,7 @@ export interface QuizQuestion {
   topic_id: number;
   question_text: string;
   options: string[];
+  correct_option_index: number;
   difficulty_level: number;
   explanation?: string;
 }

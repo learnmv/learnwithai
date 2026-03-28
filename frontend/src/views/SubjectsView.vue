@@ -21,7 +21,7 @@
       <!-- Subjects Grid -->
       <div v-if="loading" class="text-center py-12">
         <div class="text-4xl animate-spin">🌱</div>
-        <p class="mt-4 text-soil-medium">Loading subjects...\u003c/p>
+        <p class="mt-4 text-soil-medium">Loading subjects...</p>
       </div>
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">

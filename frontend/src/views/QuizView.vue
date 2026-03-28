@@ -60,7 +60,7 @@
           </div>
 
           <!-- Explanation -->
-          <div v-if="showResult &&; currentQuestion.explanation"
+          <div v-if="showResult && currentQuestion.explanation"
                class="mt-6 p-4 bg-seed rounded-lg border-l-4 border-sapling"
           >
             <div class="font-semibold text-flourish mb-1">Explanation:</div>

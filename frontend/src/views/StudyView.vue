@@ -10,7 +10,7 @@
 
       <div v-if="loading" class="text-center py-12">
         <div class="text-4xl animate-spin">🌱</div>
-        <p class="mt-4 text-soil-medium">Loading content...\u003c/p>
+        <p class="mt-4 text-soil-medium">Loading content...</p>
       </div>
 
       <div v-else-if="topic" class="space-y-6">

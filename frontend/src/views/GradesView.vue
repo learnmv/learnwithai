@@ -15,7 +15,7 @@
       <!-- Grades Grid -->
       <div v-if="loading" class="text-center py-12">
         <div class="text-4xl animate-spin">🌱</div>
-        <p class="mt-4 text-soil-medium">Loading grades...\u003c/p>
+        <p class="mt-4 text-soil-medium">Loading grades...</p>
       </div>
 
       <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-6">
