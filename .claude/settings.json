@@ -1,18 +1,23 @@
 {
   "permissions": {
-    "allow": [
+    "autoAllow": [
       "Edit",
       "Write",
-      "Bash(kubectl:*)",
-      "Bash(docker:*)",
-      "Bash(cd:*)",
-      "Bash(npm:*)"
+      "Bash: cd",
+      "Bash: npm"
     ]
   },
   "hooks": {
-    "PostToolUse[Write]": {
-      "description": "Notify on file changes",
-      "command": "echo '[hooks] File modified: {{file_path}}'"
-    }
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[hooks] File modified: {{file_path}}'"
+          }
+        ]
+      }
+    ]
   }
 }
