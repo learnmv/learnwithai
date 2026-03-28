@@ -7,8 +7,7 @@ from sqlalchemy import select
 
 from app.database import get_async_session
 from app.models.grades import Grade
-from app.models.subjects import Subject
-from app.models.topics import Topic
+from app.models.subjects import Subject, Topic
 from app.schemas.grades import GradeResponse, GradeWithCounts
 
 router = APIRouter(prefix="/grades", tags=["grades"])
