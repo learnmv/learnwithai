@@ -14,7 +14,7 @@ env:
 jobs:
   # Detect which services changed
   changes:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       backend: ${{ steps.changes.outputs.backend }}
       frontend: ${{ steps.changes.outputs.frontend }}
@@ -34,7 +34,7 @@ jobs:
 
   # Backend Tests
   backend-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: changes
     if: ${{ needs.changes.outputs.backend == 'true' }}
     defaults:
@@ -62,7 +62,7 @@ jobs:
 
   # Frontend Tests
   frontend-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' }}
     defaults:
