@@ -1,0 +1,215 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: learnwithai-dev
+---
+# PostgreSQL Deployment (Development)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: learnwithai-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_USER
+              value: admin
+            - name: POSTGRES_PASSWORD
+              value: admin@123
+            - name: POSTGRES_DB
+              value: learnwithai
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-data
+          emptyDir: {}
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: learnwithai-dev
+spec:
+  type: NodePort
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30432
+---
+# Ollama Deployment (Development - CPU only)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: learnwithai-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              /bin/ollama serve &
+              sleep 10
+              ollama pull llama3.2 || true
+              ollama pull mistral || true
+              wait
+---
+# Ollama Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: learnwithai-dev
+spec:
+  type: NodePort
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: 11434
+      nodePort: 30434
+---
+# FastAPI Backend Deployment (Development)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: learnwithai-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: learnwithai-backend:latest
+          imagePullPolicy: Never  # Use local image for dev
+          env:
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://admin:admin@123@postgres:5432/learnwithai"
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama:11434"
+            - name: SECRET_KEY
+              value: "dev-secret-key-change-in-production"
+            - name: DEBUG
+              value: "true"
+            - name: CORS_ORIGINS
+              value: '["*"]'
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: learnwithai-dev
+spec:
+  type: NodePort
+  selector:
+    app: backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30080
+---
+# ConfigMap for backend configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: learnwithai-dev
+data:
+  APP_NAME: "LearnWithAI Dev"
+  DEFAULT_MODEL: "llama3.2"
+  QUIZ_MODEL: "mistral"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+---
+# Ingress (Optional - for local development with ingress)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: learnwithai-ingress
+  namespace: learnwithai-dev
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: learnwithai.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
