@@ -80,7 +80,7 @@ async def ai_chat_websocket(
             # Get topic name for context
             topic_name = "this topic"
             if topic_id:
-                from app.models.topics import Topic
+                from app.models.subjects import Topic
                 topic_result = await db.execute(
                     select(Topic).where(Topic.id == topic_id)
                 )

@@ -6,8 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_async_session
-from app.models.subjects import Subject
-from app.models.topics import Topic
+from app.models.subjects import Subject, Topic
 from app.schemas.subjects import SubjectResponse, SubjectWithTopics
 
 router = APIRouter(prefix="/subjects", tags=["subjects"])

@@ -158,7 +158,7 @@ async def generate_adaptive_question(
 ):
     """Generate adaptive quiz question using AI."""
     # Get topic info
-    from app.models.topics import Topic
+    from app.models.subjects import Topic
     topic_result = await db.execute(
         select(Topic).where(Topic.id == request.topic_id)
     )

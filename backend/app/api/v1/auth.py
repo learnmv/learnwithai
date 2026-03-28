@@ -13,7 +13,8 @@ from app.schemas.users import UserCreate, UserResponse, UserLogin, Token
 from app.core.security import (
     verify_password,
     get_password_hash,
-    create_access_token
+    create_access_token,
+    get_current_user
 )
 from app.repositories.user_repo import UserRepository
 

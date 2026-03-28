@@ -48,7 +48,7 @@ class QuizAttempt(Base):
     score_percentage = Column(Integer)
     difficulty_reached = Column(Integer, default=1)
     streak_count = Column(Integer, default=0)
-    metadata = Column(JSON)  # Adaptive tracking data
+    attempt_adaptive_data = Column(JSON)  # Adaptive tracking data
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships

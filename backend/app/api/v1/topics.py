@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_async_session
-from app.models.topics import Topic
+from app.models.subjects import Topic
 from app.models.users import UserProgress
-from app.models.standards import Standard
+from app.models.domains import Standard
 from app.schemas.subjects import TopicResponse, TopicWithContent
 from app.core.security import get_current_user
 
