@@ -3,236 +3,6 @@ kind: Namespace
 metadata:
   name: learnwithai-prod
 ---
-# PostgreSQL Persistent Volume (Production)
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-data
-  namespace: learnwithai-prod
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: standard  # Adjust based on your cloud provider
----
-# PostgreSQL Secret (Production - change these values!)
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-secret
-  namespace: learnwithai-prod
-type: Opaque
-stringData:
-  username: admin
-  password: "CHANGE_THIS_STRONG_PASSWORD_12345"
-  database: learnwithai
----
-# PostgreSQL Deployment (Production)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-  namespace: learnwithai-prod
-  labels:
-    app: postgres
-    tier: database
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate  # For stateful apps
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-        tier: database
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:15-alpine
-          env:
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: username
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: password
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: database
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
-          ports:
-            - containerPort: 5432
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "1000m"
-          volumeMounts:
-            - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-          livenessProbe:
-            exec:
-              command:
-                - pg_isready
-                - -U
-                - $(POSTGRES_USER)
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-          readinessProbe:
-            exec:
-              command:
-                - pg_isready
-                - -U
-                - $(POSTGRES_USER)
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-      volumes:
-        - name: postgres-data
-          persistentVolumeClaim:
-            claimName: postgres-data
----
-# PostgreSQL Service (Internal only)
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-  namespace: learnwithai-prod
-  labels:
-    app: postgres
-    tier: database
-spec:
-  type: ClusterIP
-  selector:
-    app: postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
----
-# Ollama Deployment (Production with GPU support)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ollama
-  namespace: learnwithai-prod
-  labels:
-    app: ollama
-    tier: ai
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ollama
-  template:
-    metadata:
-      labels:
-        app: ollama
-        tier: ai
-    spec:
-      containers:
-        - name: ollama
-          image: ollama/ollama:latest
-          ports:
-            - containerPort: 11434
-          resources:
-            requests:
-              memory: "4Gi"
-              cpu: "1000m"
-              # Uncomment for GPU support:
-              # nvidia.com/gpu: 1
-            limits:
-              memory: "8Gi"
-              cpu: "2000m"
-              # Uncomment for GPU support:
-              # nvidia.com/gpu: 1
-          volumeMounts:
-            - name: ollama-data
-              mountPath: /root/.ollama
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 11434
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            timeoutSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 11434
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-          startupProbe:
-            httpGet:
-              path: /
-              port: 11434
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 60  # Allow 5 minutes for model downloads
-      volumes:
-        - name: ollama-data
-          persistentVolumeClaim:
-            claimName: ollama-data
-      # Uncomment for GPU nodes:
-      # nodeSelector:
-      #   nvidia.com/gpu.present: "true"
----
-# Ollama PVC
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ollama-data
-  namespace: learnwithai-prod
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi  # For storing models
-  storageClassName: standard
----
-# Ollama Service (Internal only)
-apiVersion: v1
-kind: Service
-metadata:
-  name: ollama
-  namespace: learnwithai-prod
-  labels:
-    app: ollama
-    tier: ai
-spec:
-  type: ClusterIP
-  selector:
-    app: ollama
-  ports:
-    - port: 11434
-      targetPort: 11434
----
-# FastAPI Backend Secret
-apiVersion: v1
-kind: Secret
-metadata:
-  name: backend-secret
-  namespace: learnwithai-prod
-type: Opaque
-stringData:
-  secret-key: "CHANGE_THIS_TO_A_32_CHAR_SECRET_KEY_123456789012345"
----
 # Backend ConfigMap
 apiVersion: v1
 kind: ConfigMap
@@ -246,8 +16,20 @@ data:
   QUIZ_MODEL: "mistral"
   ACCESS_TOKEN_EXPIRE_MINUTES: "30"
   CORS_ORIGINS: '["https://learnwithai.app", "https://www.learnwithai.app"]'
-  DATABASE_URL: "postgresql+asyncpg://admin:$(POSTGRES_PASSWORD)@postgres:5432/learnwithai"
-  OLLAMA_BASE_URL: "http://ollama:11434"
+  # Connect to existing PostgreSQL on host
+  DATABASE_URL: "postgresql+asyncpg://admin:admin@123@10.0.0.131:30432/learnwithai"
+  # Connect to existing Ollama on host
+  OLLAMA_BASE_URL: "http://10.0.0.131:30434"
+---
+# Backend Secret (Change these values!)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-secret
+  namespace: learnwithai-prod
+type: Opaque
+stringData:
+  secret-key: "CHANGE_THIS_TO_A_32_CHAR_SECRET_KEY_123456789012345"
 ---
 # FastAPI Backend Deployment (Production)
 apiVersion: apps/v1
@@ -255,11 +37,8 @@ kind: Deployment
 metadata:
   name: backend
   namespace: learnwithai-prod
-  labels:
-    app: backend
-    tier: api
 spec:
-  replicas: 3  # Multiple replicas for high availability
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -272,11 +51,10 @@ spec:
     metadata:
       labels:
         app: backend
-        tier: api
     spec:
       containers:
         - name: backend
-          image: learnwithai-backend:latest  # Replace with your registry
+          image: learnwithai-backend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -335,7 +113,6 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
@@ -343,14 +120,6 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
-            failureThreshold: 3
-          startupProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 30
 ---
 # Backend Service
 apiVersion: v1
@@ -358,18 +127,16 @@ kind: Service
 metadata:
   name: backend
   namespace: learnwithai-prod
-  labels:
-    app: backend
-    tier: api
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: backend
   ports:
     - port: 8000
       targetPort: 8000
+      nodePort: 30080
 ---
-# Horizontal Pod Autoscaler (Production)
+# Horizontal Pod Autoscaler
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -395,108 +162,8 @@ spec:
         target:
           type: Utilization
           averageUtilization: 80
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-        - type: Percent
-          value: 10
-          periodSeconds: 60
-    scaleUp:
-      stabilizationWindowSeconds: 0
-      policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 15
-        - type: Pods
-          value: 4
-          periodSeconds: 15
-      selectPolicy: Max
 ---
-# Nginx Ingress (Production with SSL)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: learnwithai-ingress
-  namespace: learnwithai-prod
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    # SSL configuration (uncomment when you have TLS certs)
-    # kubernetes.io/ingress.class: nginx
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
-    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: learnwithai.app  # Change to your domain
-      http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 8000
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 8000
-  # Uncomment when you have TLS certificates:
-  # tls:
-  #   - hosts:
-  #       - learnwithai.app
-  #     secretName: learnwithai-tls
----
-# Network Policy (Production - Security)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: backend-network-policy
-  namespace: learnwithai-prod
-spec:
-  podSelector:
-    matchLabels:
-      app: backend
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: ingress-nginx
-      ports:
-        - protocol: TCP
-          port: 8000
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: postgres
-      ports:
-        - protocol: TCP
-          port: 5432
-    - to:
-        - podSelector:
-            matchLabels:
-              app: ollama
-      ports:
-        - protocol: TCP
-          port: 11434
-    - to: []
-      ports:
-        - protocol: TCP
-          port: 53
-        - protocol: UDP
-          port: 53
----
-# Pod Disruption Budget (Production)
+# Pod Disruption Budget
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

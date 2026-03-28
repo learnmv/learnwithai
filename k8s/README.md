@@ -1,176 +1,193 @@
 # LearnWithAI Kubernetes Deployment
 
+## Architecture
+
+This K8s setup deploys only the **FastAPI backend** to your existing cluster.
+**PostgreSQL** and **Ollama** are already running on the host (10.0.0.131).
+
+```
+┌─────────────────────────────────────────┐
+│              Kubernetes                 │
+│  ┌─────────────────────────────────┐   │
+│  │   learnwithai-dev/prod NS       │   │
+│  │   ┌─────────────────────┐       │   │
+│  │   │   Backend Pods      │       │   │
+│  │   │   (3 replicas)      │       │   │
+│  │   └──────────┬──────────┘       │   │
+│  │              │                  │   │
+│  └──────────────┼──────────────────┘   │
+│                 │                       │
+│  ┌──────────────┴──────────────────┐   │
+│  │        NodePort 30080            │   │
+│  └──────────────┬──────────────────┘   │
+└─────────────────┼───────────────────────┘
+                  │
+         ┌────────┴────────┐
+         │  Host Services  │
+         │  ┌───────────┐  │
+         │  │ PostgreSQL│  │ Port: 30432
+         │  │ 10.0.0.131│  │
+         │  └───────────┘  │
+         │  ┌───────────┐  │
+         │  │   Ollama  │  │ Port: 30434
+         │  │ 10.0.0.131│  │
+         │  └───────────┘  │
+         └─────────────────┘
+```
+
 ## Quick Start
 
-### Development Environment
+### 1. Build Backend Image
 
 ```bash
-# Build the backend image first
-docker build -t learnwithai-backend:latest ./backend
+cd /home/sysadmin/learnwithai/backend
+docker build -t learnwithai-backend:latest .
+```
 
-# Deploy to Kubernetes
+### 2. Deploy to Kubernetes
+
+#### Development (1 replica)
+
+```bash
 cd /home/sysadmin/learnwithai/k8s
 kubectl apply -f dev.yml
 
 # Check status
 kubectl get pods -n learnwithai-dev
 
-# Access services
-# Backend API: http://localhost:30080
-# PostgreSQL: localhost:30432
-# Ollama: localhost:30434
+# View logs
+kubectl logs -f deployment/backend -n learnwithai-dev
 ```
 
-### Production Environment
+#### Production (3 replicas, HPA)
 
 ```bash
-# IMPORTANT: Change secrets before deploying!
-# Edit prod.yml and update:
-# 1. postgres-secret password
-# 2. backend-secret key
-# 3. Ingress domain (learnwithai.app)
+# IMPORTANT: Change the secret key first!
+# Edit prod.yml and update backend-secret
 
-# Deploy to Kubernetes
-cd /home/sysadmin/learnwithai/k8s
 kubectl apply -f prod.yml
 
 # Check status
 kubectl get pods -n learnwithai-prod
-
-# View logs
-kubectl logs -f deployment/backend -n learnwithai-prod
+kubectl get hpa -n learnwithai-prod
 ```
 
-## Service Access
+### 3. Access the API
 
-### Development
+```bash
+# Via NodePort
+curl http://10.0.0.131:30080/health
 
-| Service | NodePort | URL |
-|---------|----------|-----|
-| Backend API | 30080 | http://localhost:30080 |
-| PostgreSQL | 30432 | localhost:30432 |
-| Ollama | 30434 | localhost:30434 |
-
-### Production
-
-Access via Ingress domain (configure DNS to point to your cluster):
-- API: https://learnwithai.app/api
-- Health: https://learnwithai.app/health
+# Or via kubectl port-forward
+kubectl port-forward svc/backend 8000:8000 -n learnwithai-dev
+# Then visit http://localhost:8000/docs
+```
 
 ## Configuration
 
-### Development (dev.yml)
+### Connection Strings
 
-- **Single replica** for all services
-- **EmptyDir** volumes (data lost on restart)
-- **NodePort** for external access
-- **CPU-only** Ollama (no GPU)
-- **Simple passwords** (change for any shared environment)
+Both `dev.yml` and `prod.yml` connect to existing services:
 
-### Production (prod.yml)
+| Service | Host | Port | Connection |
+|---------|------|------|------------|
+| PostgreSQL | 10.0.0.131 | 30432 | Already running on host |
+| Ollama | 10.0.0.131 | 30434 | Already running on host |
 
-- **3 replicas** of backend (HA)
-- **Persistent volumes** for PostgreSQL and Ollama
-- **Secrets** for sensitive data
-- **Resource limits** and **requests**
-- **Health checks** (liveness, readiness, startup)
-- **Horizontal Pod Autoscaler** (3-10 replicas)
-- **Network policies** for security
-- **Pod Disruption Budget** for availability
-- **Rolling updates** strategy
-- **Ingress** with SSL (configure cert-manager)
+### Backend Service
+
+| Environment | Type | NodePort | Replicas |
+|-------------|------|----------|----------|
+| dev | NodePort | 30080 | 1 |
+| prod | NodePort | 30080 | 3 (HPA: 3-10) |
 
 ## Useful Commands
 
 ```bash
-# Get all resources in dev namespace
+# Get all resources
 kubectl get all -n learnwithai-dev
-
-# Get all resources in prod namespace
 kubectl get all -n learnwithai-prod
 
-# View backend logs
+# View logs
 kubectl logs -f deployment/backend -n learnwithai-dev
 
-# Exec into PostgreSQL pod
-kubectl exec -it deployment/postgres -n learnwithai-dev -- psql -U admin -d learnwithai
-
-# Port forward for local access
-kubectl port-forward svc/backend 8000:8000 -n learnwithai-dev
-
-# Scale backend replicas
+# Scale manually
 kubectl scale deployment backend --replicas=5 -n learnwithai-prod
 
-# Delete namespace (cleanup)
-kubectl delete namespace learnwithai-dev
-kubectl delete namespace learnwithai-prod
+# Delete deployment
+kubectl delete -f dev.yml
+kubectl delete -f prod.yml
+
+# Check HPA status
+kubectl get hpa backend-hpa -n learnwithai-prod
+kubectl describe hpa backend-hpa -n learnwithai-prod
+
+# Port forward for local testing
+kubectl port-forward svc/backend 8000:8000 -n learnwithai-dev
 ```
 
 ## Production Checklist
 
 Before deploying to production:
 
-- [ ] Change `postgres-secret` password
-- [ ] Change `backend-secret` key
-- [ ] Update Ingress domain
-- [ ] Configure TLS certificates (cert-manager)
-- [ ] Set up external load balancer
-- [ ] Configure monitoring (Prometheus/Grafana)
-- [ ] Set up log aggregation (ELK/Loki)
-- [ ] Enable network policies
-- [ ] Configure backup for PostgreSQL PVC
-- [ ] Set resource limits appropriately
-- [ ] Test rolling updates
-- [ ] Configure alerting
-
-## Storage Classes
-
-Adjust `storageClassName` in PVCs based on your cloud provider:
-
-- **AWS**: gp2, gp3, io1
-- **GCP**: standard, pd-ssd, pd-balanced
-- **Azure**: default, managed-premium
-- **On-prem**: nfs, ceph-rbd, etc.
-
-## GPU Support (Optional)
-
-For GPU-accelerated Ollama in production:
-
-1. Install NVIDIA device plugin:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.0/nvidia-device-plugin.yml
-```
-
-2. Uncomment GPU resources in `prod.yml`:
-```yaml
-resources:
-  limits:
-    nvidia.com/gpu: 1
-```
-
-3. Add node selector:
-```yaml
-nodeSelector:
-  nvidia.com/gpu.present: "true"
-```
+- [ ] Change `backend-secret` in `prod.yml`
+- [ ] Verify PostgreSQL is accessible at `10.0.0.131:30432`
+- [ ] Verify Ollama is accessible at `10.0.0.131:30434`
+- [ ] Set appropriate CORS origins in ConfigMap
+- [ ] Test with `curl http://10.0.0.131:30080/health`
+- [ ] Verify HPA is working: `kubectl get hpa -n learnwithai-prod`
+- [ ] Set up external load balancer (nginx/traefik) if needed
+- [ ] Configure SSL/TLS termination
 
 ## Troubleshooting
 
-### Pod stuck in Pending
-- Check resource availability: `kubectl describe node`
-- Check PVC status: `kubectl get pvc -n learnwithai-prod`
-
 ### Backend can't connect to PostgreSQL
-- Verify service exists: `kubectl get svc postgres -n learnwithai-prod`
-- Check backend logs: `kubectl logs deployment/backend -n learnwithai-prod`
-- Test connection from backend pod
 
-### Ollama models not downloading
-- Check pod logs: `kubectl logs deployment/ollama -n learnwithai-prod`
-- Verify internet connectivity
-- Check PVC has enough space (20Gi)
+```bash
+# Test connectivity from pod
+kubectl exec -it deployment/backend -n learnwithai-dev -- sh
+# Then inside pod:
+apk add --no-cache postgresql-client
+psql "postgresql://admin:admin@123@10.0.0.131:30432/learnwithai" -c "SELECT 1;"
+```
 
-### Ingress not working
-- Verify ingress controller is installed
-- Check ingress status: `kubectl get ingress -n learnwithai-prod`
-- Check ingress controller logs
+### Backend can't connect to Ollama
+
+```bash
+# Test from pod
+kubectl exec -it deployment/backend -n learnwithai-dev -- sh
+# Then:
+apk add --no-cache curl
+curl http://10.0.0.131:11434/api/tags
+```
+
+### ImagePullBackOff
+
+```bash
+# Ensure image is built on the node
+docker build -t learnwithai-backend:latest ./backend
+docker images | grep learnwithai-backend
+```
+
+### Pod in CrashLoopBackOff
+
+```bash
+# Check logs
+kubectl logs deployment/backend -n learnwithai-dev --previous
+
+# Check events
+kubectl describe pod -l app=backend -n learnwithai-dev
+```
+
+## Updating Deployment
+
+```bash
+# Rebuild image
+docker build -t learnwithai-backend:latest ./backend
+
+# Rolling update
+kubectl rollout restart deployment/backend -n learnwithai-dev
+
+# Check rollout status
+kubectl rollout status deployment/backend -n learnwithai-dev
+```
