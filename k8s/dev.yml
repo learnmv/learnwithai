@@ -16,9 +16,7 @@ data:
   QUIZ_MODEL: "mistral"
   ACCESS_TOKEN_EXPIRE_MINUTES: "30"
   CORS_ORIGINS: '["*"]'
-  # Connect to existing PostgreSQL on host
   DATABASE_URL: "postgresql+asyncpg://admin:admin@123@10.0.0.131:30432/learnwithai"
-  # Connect to existing Ollama on host
   OLLAMA_BASE_URL: "http://10.0.0.131:30434"
 ---
 # Backend Secret
@@ -31,7 +29,7 @@ type: Opaque
 stringData:
   secret-key: "dev-secret-key-change-in-production"
 ---
-# FastAPI Backend Deployment (Development)
+# FastAPI Backend Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,8 +47,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: learnwithai-backend:latest
-          imagePullPolicy: Never  # Use local image for dev
+          image: ghcr.io/learnmv/learnwithai/backend:develop
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
@@ -70,30 +68,15 @@ spec:
                   name: backend-secret
                   key: secret-key
             - name: DEBUG
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: DEBUG
+              value: "true"
             - name: APP_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: APP_NAME
+              value: "LearnWithAI Dev"
             - name: DEFAULT_MODEL
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: DEFAULT_MODEL
+              value: "llama3.2"
             - name: QUIZ_MODEL
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: QUIZ_MODEL
+              value: "mistral"
             - name: CORS_ORIGINS
-              valueFrom:
-                configMapKeyRef:
-                  name: backend-config
-                  key: CORS_ORIGINS
+              value: '["*"]'
           resources:
             requests:
               memory: "256Mi"
@@ -114,17 +97,61 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
 ---
-# Backend Service (NodePort for external access)
+# Backend Service
 apiVersion: v1
 kind: Service
 metadata:
   name: backend
   namespace: learnwithai-dev
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: backend
   ports:
     - port: 8000
       targetPort: 8000
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: learnwithai-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/learnmv/learnwithai/frontend:develop
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: learnwithai-dev
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
       nodePort: 30080

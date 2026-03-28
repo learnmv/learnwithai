@@ -1,0 +1,87 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+      image_tag:
+        description: 'Image tag to deploy (e.g., latest, sha-abc123)'
+        required: true
+        default: 'latest'
+      service:
+        description: 'Service to deploy'
+        required: true
+        default: 'backend'
+        type: choice
+        options:
+          - backend
+          - frontend
+          - all
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy Backend
+        if: ${{ github.event.inputs.service == 'backend' || github.event.inputs.service == 'all' }}
+        run: |
+          NAMESPACE="learnwithai-${{ github.event.inputs.environment }}"
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ github.event.inputs.image_tag }}"
+
+          echo "Deploying backend to $NAMESPACE with image $IMAGE"
+          kubectl set image deployment/backend backend=$IMAGE -n $NAMESPACE
+          kubectl rollout status deployment/backend -n $NAMESPACE --timeout=300s
+
+          echo "✅ Backend deployment complete"
+
+      - name: Deploy Frontend
+        if: ${{ github.event.inputs.service == 'frontend' || github.event.inputs.service == 'all' }}
+        run: |
+          NAMESPACE="learnwithai-${{ github.event.inputs.environment }}"
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ github.event.inputs.image_tag }}"
+
+          echo "Deploying frontend to $NAMESPACE with image $IMAGE"
+          kubectl set image deployment/frontend frontend=$IMAGE -n $NAMESPACE || echo "Frontend deployment not found"
+          kubectl rollout status deployment/frontend -n $NAMESPACE --timeout=300s || true
+
+          echo "✅ Frontend deployment complete"
+
+      - name: Verify Deployment
+        run: |
+          NAMESPACE="learnwithai-${{ github.event.inputs.environment }}"
+          echo "Current pods in $NAMESPACE:"
+          kubectl get pods -n $NAMESPACE
+
+          echo ""
+          echo "Service endpoints:"
+          kubectl get svc -n $NAMESPACE
+
+      - name: Rollback on Failure
+        if: failure()
+        run: |
+          NAMESPACE="learnwithai-${{ github.event.inputs.environment }}"
+          echo "❌ Deployment failed. Rolling back..."
+          kubectl rollout undo deployment/backend -n $NAMESPACE || true
+          kubectl rollout undo deployment/frontend -n $NAMESPACE || true
