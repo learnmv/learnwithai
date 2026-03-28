@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write",
+      "Bash(kubectl:*)",
+      "Bash(docker:*)",
+      "Bash(cd:*)",
+      "Bash(npm:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse[Write]": {
+      "description": "Notify on file changes",
+      "command": "echo '[hooks] File modified: {{file_path}}'"
+    }
+  }
+}
